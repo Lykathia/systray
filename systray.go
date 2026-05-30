@@ -140,16 +140,23 @@ func Register(onReady func(), onExit func()) {
 // ResetMenu will remove all menu items
 func ResetMenu() {
 	menuItemsLock.Lock()
-	id := currentID.Load()
 	items := make([]*MenuItem, 0, len(menuItems))
 	for _, item := range menuItems {
 		items = append(items, item)
 	}
+	// Drop all tracked items at once. resetMenu (below) discards the whole layout
+	// tree and emits a single LayoutUpdated, so removing items individually would
+	// only flood the host with redundant per-item layout signals.
+	menuItems = make(map[uint32]*MenuItem)
 	menuItemsLock.Unlock()
+
+	// Close each click channel
 	for _, item := range items {
-		if item.id <= id && item.parent == nil {
-			item.Remove()
+		select {
+		case <-item.ClickedCh:
+		default:
 		}
+		close(item.ClickedCh)
 	}
 	resetMenu()
 }
